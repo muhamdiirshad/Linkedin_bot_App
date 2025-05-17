@@ -41,8 +41,36 @@ const buildPost = (content, isCompanyPost) => ({
   }
 });
 
-module.exports = {
-   
+module.exports = {   
+
+/**
+ * Posts a simple text-only post to LinkedIn.
+ *
+ * @param {string} content - The post text
+ * @param {boolean} isCompanyPost - Whether to post as a company (default: true)
+ * @returns {Promise<{success: boolean, message: string, linkedInId?: string}>}
+ */
+async postToLinkedIn(content, isCompanyPost = false) {
+  try {
+    // Call the createPost method from the module that handles the LinkedIn API interaction
+    const postResponse = await this.createPost(content, isCompanyPost);
+
+    // Return the success response with the LinkedIn ID
+    return {
+      success: true,
+      message: "Text post published successfully on LinkedIn",
+      linkedInId: postResponse.id  // Assuming postResponse contains LinkedIn post ID
+    };
+
+  } catch (error) {
+    console.error('Post failed:', error.response?.data || error.message);
+
+    // Provide more detailed error handling
+    const errorMessage = error.response?.data?.message || 'Failed to post to LinkedIn';
+    throw new Error(errorMessage);
+  }
+},
+
   // Create a LinkedIn post (UGC - User Generated Content)
  
 
@@ -52,10 +80,11 @@ module.exports = {
    * @param {boolean} isCompanyPost - Whether to post as a company
    * @returns {Promise<{success: boolean, message: string, linkedInId?: string}>}
    */
-  async createPost(content, isCompanyPost = true) {
+  async createPost(content, isCompanyPost = false) {
     try {
       const payload = buildPost(content, isCompanyPost); // Build post data
       const response = await api.post('/ugcPosts', payload); // Send request to LinkedIn
+
 
       console.log("Full LinkedIn API Response:", response.data); // Debug output
 
@@ -86,7 +115,7 @@ module.exports = {
    * @param {boolean} isCompanyPost - Whether the post is from a company
    * @returns {Promise<{success: boolean, message: string, newPostId?: string}>}
    */
-    async updatePost(postId, newContent, isCompanyPost = true) {
+    async updatePost(postId, newContent, isCompanyPost = false) {
       try {
         // Step 1: Delete the existing post
         const deleteResult = await this.deletePost(postId);
@@ -143,4 +172,16 @@ module.exports = {
       throw new Error(error.response?.data?.message || 'Failed to delete LinkedIn post');
     }
   }
+};
+
+async function publish(content, mediaUrl, mediaType) {
+  // Detect type and call LinkedIn API accordingly
+  if (mediaType === 'image') {
+    // Post image
+  } else if (mediaType === 'video') {
+    // Post video
+  } else {
+    // Post text-only
+  }
 }
+// module.exports = { publish };

@@ -9,7 +9,10 @@ const postSchema = new mongoose.Schema({
   comments: [{
     text: String,
     author: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
-  }]
+  }],
+  scheduled: { type: Boolean, default: false },
+  posted: { type: Boolean, default: false },
+  postedAt: Date,
 }, { timestamps: true });
 
 // Edit post method
