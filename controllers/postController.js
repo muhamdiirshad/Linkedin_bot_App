@@ -11,21 +11,38 @@ const linkedinService = require("../services/linkedinService");
 
 const createPost = async (req, res) => {
   try {
-    // Extract content from request body
-    const { content } = req.body;
+    const { content, author = "admin" } = req.body;
+
+    // Basic validation
+    if (!content || content.trim() === "") {
+      return res.status(400).json({
+        success: false,
+        error: {
+          type: 'VALIDATION_ERROR',
+          message: 'Post content is required.'
+        }
+      });
+    }
 
     // Call LinkedIn service to create the post
-    // The second argument (false) indicates it's a user post (not an organization post)
-    const result = await linkedinService.createPost(content, false);
+    const result = await linkedinService.createPost(content, false); // false = user post
 
-    // Respond with success message and LinkedIn post ID
-    res.json({ success: true, message: result.message, linkedInId: result.linkedInId  });
-  
-  
+    // Save to MongoDB
+    const newPost = new Post({
+      content,
+      linkedInId: result.linkedInId,
+      author,
+      isCompanyPost: false,
+    });
+
+    await newPost.save();
+
+    // Respond with success and saved post
+    return res.status(201).json({ success: true, post: newPost });
+
   } catch (error) {
-    // Log and handle any errors that occurred during post creation
     console.error("ERROR in createPost:", error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: {
         type: 'SERVER_ERROR',
@@ -34,6 +51,7 @@ const createPost = async (req, res) => {
     });
   }
 };
+
 
 const getAllPosts = async (req, res) => {
   try {
@@ -139,7 +157,7 @@ const updatePost = async (req, res) => {
 
 const deletePost = async (req, res) => {
   // Log the request parameters for debugging
-  console.log("DELETE Request Params:", req.params);
+  console.log("Post deleted successfully from LinkedIn:", req.params);
 
   const { postId } = req.params;
 
