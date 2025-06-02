@@ -6,6 +6,8 @@ const postRoutes = require('./routes/postRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const scheduledRoutes = require('./routes/scheduledRoutes');
 const schedulePosts = require('./cron/scheduler');
+const authRoutes = require("./routes/authRoutes");
+
 dotenv.config();
 
 const app = express();
@@ -19,6 +21,9 @@ connectDB();
 app.use('/api/post', postRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/scheduler', scheduledRoutes);
+
+//authentication Routes
+app.use("/api/auth", authRoutes);
 
 
 
