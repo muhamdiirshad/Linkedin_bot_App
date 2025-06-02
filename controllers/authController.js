@@ -70,3 +70,66 @@ exports.login = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+
+// Create a new user (for admin or API use)
+exports.createUser = async (req, res) => {
+  try {
+    const { userName, email, password, mobileNumber, companyId, userId, instagramUsername, instagramPassword } = req.body;
+
+    // Check if the user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: "User with this email already exists" });
+    }
+
+    // Create and save new user
+    const newUser = await User.create({
+      userName,
+      email,
+      password,
+      mobileNumber,
+      companyId,
+      userId,
+      instagramUsername,
+      instagramPassword
+    });
+
+    res.status(201).json({
+      message: "User created successfully",
+      user: {
+        id: newUser._id,
+        userName: newUser.userName,
+        email: newUser.email,
+        mobileNumber: newUser.mobileNumber,
+        companyId: newUser.companyId,
+        userId: newUser.userId,
+        instagramUsername: newUser.instagramUsername
+      }
+    });
+  } catch (error) {
+    console.error("Create user error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+
+// Get user by ID
+exports.getUserById = async (req, res) => {
+  try {
+    const userId = req.params.id;
+
+    const user = await User.findById(userId).select("-password -accessToken -instagramPassword");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.status(200).json({
+      message: "User retrieved successfully",
+      user
+    });
+  } catch (error) {
+    console.error("Get user error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
