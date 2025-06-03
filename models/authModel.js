@@ -32,7 +32,10 @@ const userSchema = new mongoose.Schema({
     },
     instagramPassword: { 
         type: String 
-    }
+    },
+    // For password reset
+  resetPasswordToken: { type: String },
+  resetPasswordExpires: { type: Date },
 });
 
 // Hash password before saving
