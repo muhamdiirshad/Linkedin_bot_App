@@ -1,6 +1,6 @@
 const crypto = require("crypto");
 const bcrypt = require("bcrypt");
-const authModel = require("../models/authModel");
+const User = require("../models/authModel");
 const sendEmail = require("../utils/sendEmail");
 const generateToken = require("../utils/generateToken");
 
