@@ -14,9 +14,7 @@ router.post("/request-reset-password", authController.requestResetPassword);
 router.get("/validate-reset-token",  authController.validateResetToken);
 router.post("/reset-password",  authController.resetPassword);
 
-
-router.post("/signup",  authController.signup);
-router.post("/login",  authController.login);
+//CRUD Opeartion
 router.get("/user/:id", authController.getUserById);
 router.post("/create", authController.createUser);
 
