@@ -137,3 +137,59 @@ exports.getUserById = async (req, res) => {
   }
 };
 
+// Update user information (including Instagram credentials)
+exports.updateUser = async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const updates = req.body;
+
+    // Find the user by ID
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Handle password update separately if provided
+    if (updates.password) {
+      // Assuming your User model has a pre-save hook to hash the password
+      // If not, you'd need to hash it here: user.password = await bcrypt.hash(updates.password, 10);
+      user.password = updates.password; // This will trigger the pre-save hook for hashing
+      delete updates.password; // Remove from updates to avoid overwriting with plain text
+    }
+
+    // Apply other updates
+    Object.keys(updates).forEach(key => {
+      user[key] = updates[key];
+    });
+
+    await user.save(); // Save the updated user, triggering pre-save hooks if any
+
+    // Return the updated user without sensitive information
+    const updatedUser = await User.findById(userId).select("-password -accessToken -instagramPassword");
+
+    res.status(200).json({
+      message: "User updated successfully",
+      user: updatedUser
+    });
+  } catch (error) {
+    console.error("Update user error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// Delete a user
+exports.deleteUser = async (req, res) => {
+  try {
+    const userId = req.params.id;
+
+    const user = await User.findByIdAndDelete(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.status(200).json({ message: "User deleted successfully" });
+  } catch (error) {
+    console.error("Delete user error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
