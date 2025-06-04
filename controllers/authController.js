@@ -1,7 +1,11 @@
-const User = require("../models/User");
+const crypto = require("crypto");
+const bcrypt = require("bcrypt");
+const User = require("../models/authModel");
+const sendEmail = require("../utils/sendEmail");
 const generateToken = require("../utils/generateToken");
 
-// Signup Controller
+
+// 1.1 Signup Controller
 exports.signup = async (req, res) => {
   try {
     const { userName, email, password, mobileNumber } = req.body;
@@ -17,14 +21,11 @@ exports.signup = async (req, res) => {
       password,
       mobileNumber
     });
-
-    const token = generateToken(newUser);
-    newUser.accessToken = token;
+   
     await newUser.save();
 
     res.status(201).json({
       message: "Signup successful",
-      token,
       user: {
         id: newUser._id,
         userName: newUser.userName,
@@ -38,7 +39,8 @@ exports.signup = async (req, res) => {
   }
 };
 
-// Login Controller
+
+// 1.2 Login Controller
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -62,14 +64,15 @@ exports.login = async (req, res) => {
         mobileNumber: user.mobileNumber,
         companyId: user.companyId,
         userId: user.userId,
-        instagramUsername: user.instagramUsername
-      }
+        instagramUsername: user.instagramUsername,
+      },
     });
   } catch (err) {
     console.error("Login error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
+
 
 
 // Create a new user (for admin or API use)
@@ -133,3 +136,4 @@ exports.getUserById = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
