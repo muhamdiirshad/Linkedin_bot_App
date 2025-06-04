@@ -1,7 +1,7 @@
 const axios = require("axios");
 const Post = require("../models/postModel");
 const linkedinService = require("../services/linkedinService");
-
+const moment = require('moment'); // For date parsing and manipulation
 
 /**
  * @desc Create a new LinkedIn user post (text only for now)
@@ -204,10 +204,111 @@ const deletePost = async (req, res) => {
   }
 };
 
+/**
+ * Get posts by specific date
+ * GET /posts/by-date/:date
+ * date format: dd-mm-yy (e.g., 15-06-25)
+ * Optional query params: status, platform
+ */
+const getPostsByDate = async (req, res) => {
+  try {
+    const { date } = req.params; // dd-mm-yy
+    const { status, platform } = req.query;
+
+    // Parse date using moment
+    const parsedDate = moment(date, "DD-MM-YY", true);
+    if (!parsedDate.isValid()) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Invalid date format. Use dd-mm-yy" 
+      });
+    }
+
+    // Create date range for the day (start to end)
+    const startOfDay = parsedDate.startOf('day').toDate();
+    const endOfDay = parsedDate.endOf('day').toDate();
+
+    // Build the query
+    const query = {
+      createdAt: { $gte: startOfDay, $lte: endOfDay }
+    };
+
+    if (status) query.status = status;
+    if (platform) query.platform = platform;
+
+    const posts = await Post.find(query).sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      count: posts.length,
+      posts
+    });
+  } catch (error) {
+    console.error("Error in getPostsByDate:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch posts by date",
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Get posts by month
+ * GET /posts/by-month/:month
+ * month format: mm-yy (e.g., 06-25)
+ * Optional query params: status, platform
+ */
+const getPostsByMonth = async (req, res) => {
+  try {
+    const { month } = req.params; // mm-yy
+    const { status, platform } = req.query;
+
+    // Parse month-year using moment
+    const parsedMonth = moment(month, "MM-YY", true);
+    if (!parsedMonth.isValid()) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Invalid month format. Use mm-yy" 
+      });
+    }
+
+    // Get start and end of the month
+    const startOfMonth = parsedMonth.startOf('month').toDate();
+    const endOfMonth = parsedMonth.endOf('month').toDate();
+
+    // Build the query
+    const query = {
+      createdAt: { $gte: startOfMonth, $lte: endOfMonth }
+    };
+
+    if (status) query.status = status;
+    if (platform) query.platform = platform;
+
+    const posts = await Post.find(query).sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      count: posts.length,
+      posts
+    });
+  } catch (error) {
+    console.error("Error in getPostsByMonth:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch posts by month",
+      error: error.message
+    });
+  }
+};
+
+
 module.exports = {
   createPost,
   deletePost,
   getAllPosts,
   updatePost,
-  getPostById
+  getPostById,
+  getPostsByDate,
+  getPostsByMonth
 };

@@ -6,7 +6,7 @@ const authController = require("../controllers/authController");
 router.post("/signup", authController.signup);
 router.post("/login", authController.login);
 
-//2
+//2 forget password authRoutes
 router.post("/forgot-password", authController.forgotPassword);
 
 // 3. Password Reset Routes

@@ -19,4 +19,10 @@ router.put("/", postController.updatePost);
 // Get a single post by ID
 router.get('/:id', postController.getPostById);
 
+// Date-based filtering
+router.get('/by-date/:date', postController.getPostsByDate);
+
+// Month-based filtering
+router.get('/by-month/:month', postController.getPostsByMonth);
+
 module.exports = router;
