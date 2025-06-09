@@ -9,46 +9,80 @@ const moment = require('moment'); // For date parsing and manipulation
  * @access Private (assumes auth in place elsewhere)
  */
 
+// 📌 Create a new LinkedIn or Instagram user post (text only for now)
 const createPost = async (req, res) => {
   try {
-    const { content, author = "admin" } = req.body;
+    let { content, author = 'admin', status = 'draft', platform, scheduledAt } = req.body;
 
-    // Basic validation
-    if (!content || content.trim() === "") {
+    // ✅ Validation: content required
+    if (!content || content.trim() === '') {
       return res.status(400).json({
         success: false,
-        error: {
-          type: 'VALIDATION_ERROR',
-          message: 'Post content is required.'
-        }
+        message: 'Post content is required.',
       });
     }
 
-    // Call LinkedIn service to create the post
-    const result = await linkedinService.createPost(content, false); // false = user post
+    // ✅ Validation: allowed statuses
+    const allowedStatuses = ['draft', 'published', 'scheduled'];
+    if (status && !allowedStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid status '${status}'. Allowed statuses: ${allowedStatuses.join(', ')}`,
+      });
+    }
 
-    // Save to MongoDB
+    // ✅ Validation: platform
+    const allowedPlatforms = ['linkedin', 'instagram'];
+    if (!platform || !allowedPlatforms.includes(platform)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid platform '${platform}'. Allowed platforms: ${allowedPlatforms.join(', ')}`,
+      });
+    }
+
+    // ✅ Auto-mark as 'scheduled' if scheduledAt is provided
+    if (scheduledAt && status !== 'scheduled') {
+      status = 'scheduled';
+    }
+
+    // ✅ If status is 'scheduled', scheduledAt is mandatory
+    if (status === 'scheduled' && !scheduledAt) {
+      return res.status(400).json({
+        success: false,
+        message: 'Scheduled posts require a scheduledAt datetime.',
+      });
+    }
+
+    // ✅ Optional LinkedIn post if published immediately
+    let linkedInResult = null;
+    if (status === 'published' && platform === 'linkedin') {
+      linkedInResult = await linkedinService.createPost(content, false); // false = user post
+    }
+
+    // ✅ Create and save post
     const newPost = new Post({
       content,
-      linkedInId: result.linkedInId,
+      linkedInId: linkedInResult?.linkedInId || null,
       author,
       isCompanyPost: false,
-      platform: "linkedin",
+      status,
+      platform,
+      scheduledAt: scheduledAt || null,
+      posted: status === 'published', // already posted if status is published
+      postedAt: status === 'published' ? new Date() : null,
     });
 
     await newPost.save();
 
-    // Respond with success and saved post
-    return res.status(201).json({ success: true, post: newPost });
-
+    return res.status(201).json({
+      success: true,
+      post: newPost,
+    });
   } catch (error) {
-    console.error("ERROR in createPost:", error);
+    console.error('Error in createPost:', error);
     return res.status(500).json({
       success: false,
-      error: {
-        type: 'SERVER_ERROR',
-        message: error.message || 'Failed to create post'
-      }
+      message: 'Failed to create post. Please try again later.',
     });
   }
 };
@@ -343,6 +377,60 @@ const getTotalPostCount = async (req, res) => {
   }
 };
 
+// 📌 Get posts by tag (with pagination and optional platform filter)
+const getPostsByTag = async (req, res) => {
+  try {
+    const allowedTags = ['all', 'published', 'scheduled', 'draft'];
+    const { tag } = req.params;
+    const { page = 1, limit = 10, platform } = req.query;
+
+    // ✅ Validate the tag
+    if (!allowedTags.includes(tag)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid tag '${tag}'. Allowed tags: ${allowedTags.join(', ')}`,
+      });
+    }
+
+    // ✅ Validate platform, if provided
+    const allowedPlatforms = ['linkedin', 'instagram'];
+    if (platform && !allowedPlatforms.includes(platform)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid platform '${platform}'. Allowed platforms: ${allowedPlatforms.join(', ')}`,
+      });
+    }
+
+    // ✅ Build query dynamically
+    const query = {};
+    if (tag !== 'all') query.status = tag;
+    if (platform) query.platform = platform;
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const [posts, total] = await Promise.all([
+      Post.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit)),
+      Post.countDocuments(query),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      data: posts,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        pages: Math.ceil(total / limit),
+      },
+    });
+  } catch (err) {
+    console.error("Error in getPostsByTag:", err);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve posts.' });
+  }
+};
 
 module.exports = {
   createPost,
@@ -353,4 +441,5 @@ module.exports = {
   getPostsByDate,
   getPostsByMonth,
   getTotalPostCount,
+  getPostsByTag
 };

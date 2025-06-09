@@ -28,4 +28,7 @@ router.get('/by-date/:date', postController.getPostsByDate);
 // Month-based filtering
 router.get('/by-month/:month', postController.getPostsByMonth);
 
+// 📌 Route: GET /api/posts/tag/:tag
+router.get('/tag/:tag', postController.getPostsByTag);
+
 module.exports = router;
