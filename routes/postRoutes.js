@@ -13,6 +13,9 @@ router.delete('/:postId', postController.deletePost);
 // Get all posts
 router.get('/', postController.getAllPosts);
 
+// getTotalCountofPosts
+router.get("/total-count", postController.getTotalPostCount);
+
 //Update contentPost on Linkedin
 router.put("/", postController.updatePost);
 

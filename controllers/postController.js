@@ -33,6 +33,7 @@ const createPost = async (req, res) => {
       linkedInId: result.linkedInId,
       author,
       isCompanyPost: false,
+      platform: "linkedin",
     });
 
     await newPost.save();
@@ -302,6 +303,46 @@ const getPostsByMonth = async (req, res) => {
   }
 };
 
+/* @desc Get total post count grouped by platform, optionally filter by status
+  @route GET /api/post/total-count 
+*/ 
+const getTotalPostCount = async (req, res) => {
+  try {
+    const { status } = req.query; // optional filter by status
+
+    // Build the match stage
+    const matchStage = {};
+    if (status) {
+      matchStage.status = status;
+    }
+
+    // Use aggregation to group by platform and count
+    const breakdown = await Post.aggregate([
+      { $match: matchStage },
+      {
+        $group: {
+          _id: "$platform", // assuming field name is 'platform'
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // Convert aggregation result into { platformName: count }
+    const formattedBreakdown = {};
+    let totalCount = 0;
+
+    breakdown.forEach(item => {
+      formattedBreakdown[item._id] = item.count;
+      totalCount += item.count;
+    });
+
+    return res.json({ success: true, totalCount, breakdown: formattedBreakdown});
+  } catch (error) {
+    console.error("Error in getTotalPostCount:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch total post count", error: error.message});
+  }
+};
+
 
 module.exports = {
   createPost,
@@ -310,5 +351,6 @@ module.exports = {
   updatePost,
   getPostById,
   getPostsByDate,
-  getPostsByMonth
+  getPostsByMonth,
+  getTotalPostCount,
 };
