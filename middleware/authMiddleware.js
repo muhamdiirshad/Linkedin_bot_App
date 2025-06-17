@@ -1,4 +1,5 @@
 const jwt = require("jsonwebtoken");
+const { validationResult } = require("express-validator");
 
 const protect = (req, res, next) => {
   const authHeader = req.headers.authorization;
