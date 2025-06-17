@@ -4,7 +4,6 @@ const User = require("../models/authModel");
 const sendEmail = require("../utils/sendEmail");
 const generateToken = require("../utils/generateToken");
 
-
 // 1.1 Signup Controller
 exports.signup = async (req, res) => {
   try {
@@ -19,9 +18,9 @@ exports.signup = async (req, res) => {
       userName,
       email,
       password,
-      mobileNumber
+      mobileNumber,
     });
-   
+
     await newUser.save();
 
     res.status(201).json({
@@ -30,15 +29,14 @@ exports.signup = async (req, res) => {
         id: newUser._id,
         userName: newUser.userName,
         email: newUser.email,
-        mobileNumber: newUser.mobileNumber
-      }
+        mobileNumber: newUser.mobileNumber,
+      },
     });
   } catch (error) {
     console.error("Signup error:", error);
     res.status(500).json({ message: "Server error" });
   }
 };
-
 
 // 1.2 Login Controller
 exports.login = async (req, res) => {
@@ -49,7 +47,8 @@ exports.login = async (req, res) => {
     if (!user || !(await user.comparePassword(password))) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
-
+    console.log(email);
+    console.log(password);
     const token = generateToken(user);
     user.accessToken = token;
     await user.save();
@@ -78,12 +77,14 @@ exports.forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
     if (!email) {
-      return res.status(400).json({ message: "Please provide your registered email" });
+      return res
+        .status(400)
+        .json({ message: "Please provide your registered email" });
     }
 
     const user = await User.findOne({ email });
 
-     if (!user) {
+    if (!user) {
       return res.status(404).json({
         success: false,
         message: "This email is not registered with us.",
@@ -91,7 +92,10 @@ exports.forgotPassword = async (req, res) => {
     }
 
     const resetToken = crypto.randomBytes(32).toString("hex");
-    const resetTokenHash = crypto.createHash("sha256").update(resetToken).digest("hex");
+    const resetTokenHash = crypto
+      .createHash("sha256")
+      .update(resetToken)
+      .digest("hex");
     const resetTokenExpiry = Date.now() + 15 * 60 * 1000;
 
     user.resetPasswordToken = resetTokenHash;
@@ -133,7 +137,6 @@ exports.forgotPassword = async (req, res) => {
       </div>
     `;
 
-
     await sendEmail({
       to: user.email,
       subject: "Your Password Reset Link",
@@ -144,7 +147,6 @@ exports.forgotPassword = async (req, res) => {
       success: true,
       message: "Password reset link sent to your email.",
     });
-
   } catch (error) {
     console.error("Forgot Password Error:", error);
     res.status(500).json({
@@ -154,13 +156,11 @@ exports.forgotPassword = async (req, res) => {
   }
 };
 
-
 // 3.1 Request Password Reset Token
 exports.requestResetPassword = async (req, res) => {
   const { email } = req.body;
 
-  if (!email)
-    return res.status(400).json({ message: "Email is required" });
+  if (!email) return res.status(400).json({ message: "Email is required" });
 
   try {
     const user = await User.findOne({ email });
@@ -243,17 +243,26 @@ exports.resetPassword = async (req, res) => {
   }
 };
 
-
-
 // Create a new user (for admin or API use)
 exports.createUser = async (req, res) => {
   try {
-    const { userName, email, password, mobileNumber, companyId, userId, instagramUsername, instagramPassword } = req.body;
+    const {
+      userName,
+      email,
+      password,
+      mobileNumber,
+      companyId,
+      userId,
+      instagramUsername,
+      instagramPassword,
+    } = req.body;
 
     // Check if the user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(400).json({ message: "User with this email already exists" });
+      return res
+        .status(400)
+        .json({ message: "User with this email already exists" });
     }
 
     // Create and save new user
@@ -265,7 +274,7 @@ exports.createUser = async (req, res) => {
       companyId,
       userId,
       instagramUsername,
-      instagramPassword
+      instagramPassword,
     });
 
     res.status(201).json({
@@ -277,8 +286,8 @@ exports.createUser = async (req, res) => {
         mobileNumber: newUser.mobileNumber,
         companyId: newUser.companyId,
         userId: newUser.userId,
-        instagramUsername: newUser.instagramUsername
-      }
+        instagramUsername: newUser.instagramUsername,
+      },
     });
   } catch (error) {
     console.error("Create user error:", error);
@@ -286,20 +295,21 @@ exports.createUser = async (req, res) => {
   }
 };
 
-
 // Get user by ID
 exports.getUserById = async (req, res) => {
   try {
     const userId = req.params.id;
 
-    const user = await User.findById(userId).select("-password -accessToken -instagramPassword");
+    const user = await User.findById(userId).select(
+      "-password -accessToken -instagramPassword"
+    );
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
     res.status(200).json({
       message: "User retrieved successfully",
-      user
+      user,
     });
   } catch (error) {
     console.error("Get user error:", error);
@@ -328,18 +338,20 @@ exports.updateUser = async (req, res) => {
     }
 
     // Apply other updates
-    Object.keys(updates).forEach(key => {
+    Object.keys(updates).forEach((key) => {
       user[key] = updates[key];
     });
 
     await user.save(); // Save the updated user, triggering pre-save hooks if any
 
     // Return the updated user without sensitive information
-    const updatedUser = await User.findById(userId).select("-password -accessToken -instagramPassword");
+    const updatedUser = await User.findById(userId).select(
+      "-password -accessToken -instagramPassword"
+    );
 
     res.status(200).json({
       message: "User updated successfully",
-      user: updatedUser
+      user: updatedUser,
     });
   } catch (error) {
     console.error("Update user error:", error);

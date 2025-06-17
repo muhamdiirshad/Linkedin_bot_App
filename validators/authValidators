@@ -1,0 +1,57 @@
+
+const { body, param, query } = require("express-validator");
+
+exports.signupValidator = [
+  body("userName").trim().notEmpty().withMessage("Username is required"),
+  body("email").isEmail().withMessage("Valid email is required"),
+  body("password").isLength({ min: 6 }).withMessage("Password must be at least 6 characters"),
+  body("mobileNumber").isMobilePhone().withMessage("Valid mobile number is required"),
+];
+
+exports.loginValidator = [
+  body("email").isEmail().withMessage("Valid email is required"),
+  body("password").notEmpty().withMessage("Password is required"),
+];
+
+exports.forgotPasswordValidator = [
+  body("email").isEmail().withMessage("Valid email is required"),
+];
+
+exports.resetPasswordValidator = [
+  body("token").notEmpty().withMessage("Token is required"),
+  body("newPassword").isLength({ min: 6 }).withMessage("Password must be at least 6 characters"),
+  body("confirmPassword").custom((value, { req }) => {
+    if (value !== req.body.newPassword) throw new Error("Passwords do not match");
+    return true;
+  }),
+];
+
+exports.createUserValidator = [
+  body("userName").trim().notEmpty().withMessage("Username is required"),
+  body("email").isEmail().withMessage("Valid email is required"),
+  body("password").isLength({ min: 6 }).withMessage("Password must be at least 6 characters"),
+  body("mobileNumber").optional().isMobilePhone().withMessage("Valid mobile number is required"),
+  body("companyId").optional().isString(),
+  body("userId").optional().isString(),
+  body("instagramUsername").optional().isString(),
+  body("instagramPassword").optional().isString(),
+];
+
+exports.updateUserValidator = [
+  param("id").isMongoId().withMessage("Invalid user ID"),
+  body("email").optional().isEmail().withMessage("Valid email is required"),
+  body("mobileNumber").optional().isMobilePhone().withMessage("Valid mobile number is required"),
+  body("password").optional().isLength({ min: 6 }).withMessage("Password must be at least 6 characters"),
+];
+
+exports.getUserByIdValidator = [
+  param("id").isMongoId().withMessage("Invalid user ID"),
+];
+
+exports.deleteUserValidator = [
+  param("id").isMongoId().withMessage("Invalid user ID"),
+];
+
+exports.validateResetTokenValidator = [
+  query("token").notEmpty().withMessage("Token is required"),
+];
