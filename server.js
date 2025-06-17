@@ -5,8 +5,8 @@ dotenv.config(); // ✅ Load env vars first
 const connectDB = require('./config/db');
 
 const app = express();
-app.use(express.json());
-app.use(bodyParser.json()); 
+// app.use(express.json());
+// app.use(bodyParser.json()); 
 app.use(bodyParser.json({ limit: '5mb' }));
 
 console.log("JWT_SECRET:", process.env.JWT_SECRET); // ✅ This will now log the correct value

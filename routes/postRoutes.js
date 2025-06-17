@@ -1,26 +1,19 @@
 const express = require('express');
 const router = express.Router();
 const postController = require('../controllers/postController');
-const { uploadMediaPost} = require('../controllers/uploadController');
 
-
-// Create a post
 router.post('/', postController.createPost);
+router.get('/', postController.getPosts);
+router.get('/:id', postController.getPostById);
+router.put('/:id', postController.updatePost);
+router.delete('/:id', postController.deletePost);
 
-// Delete a post
-router.delete('/:postId', postController.deletePost);
-
-// Get all posts
-router.get('/', postController.getAllPosts);
+// router.get("/total-count", postController.getTotalPostCount);
+// router.post('/upload', uploadMediaPost);
 
 // getTotalCountofPosts
 router.get("/total-count", postController.getTotalPostCount);
 
-//Update contentPost on Linkedin
-router.put("/", postController.updatePost);
-
-// Get a single post by ID
-router.get('/:id', postController.getPostById);
 
 // Date-based filtering
 router.get('/by-date/:date', postController.getPostsByDate);
