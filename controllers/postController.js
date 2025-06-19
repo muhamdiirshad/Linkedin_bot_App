@@ -1,7 +1,9 @@
+const mongoose = require('mongoose');
 const Post = require("../models/postModel");
 const linkedinService = require("../services/linkedinService"); // Assuming this exists
 const moment = require('moment'); // For date parsing and manipulation
 const axios = require("axios"); // For updatePost and deletePost LinkedIn interactions
+
 
 /**
  * @desc Create a new dynamic post (direct or scheduled)
@@ -142,6 +144,27 @@ const getPosts = async (req, res) => {
         // If you're managing user-specific posts:
         // query.user = req.user.id;
 
+         // Pagination
+        const pageNum = parseInt(page);
+        const limitNum = parseInt(limit);
+
+        // 1. Prevent both date and month being used together
+        if (date && month) {
+            return res.status(400).json({
+                success: false,
+                message: "Please provide either 'date' or 'month', not both.",
+            });
+        }
+
+        // 2. Validate and parse pagination
+        if (isNaN(pageNum) || pageNum <= 0 || isNaN(limitNum) || limitNum <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: "'page' and 'limit' must be positive integers.",
+            });
+        }
+        const skip = (pageNum - 1) * limitNum;
+
         // Filtering by status
         const allowedStatuses = ['draft', 'published', 'scheduled'];
         if (status) {
@@ -199,11 +222,6 @@ const getPosts = async (req, res) => {
             }
         }
 
-        // Pagination
-        const pageNum = parseInt(page);
-        const limitNum = parseInt(limit);
-        const skip = (pageNum - 1) * limitNum;
-
         const [posts, total] = await Promise.all([
             Post.find(query)
                 .sort({ createdAt: -1 })
@@ -219,7 +237,7 @@ const getPosts = async (req, res) => {
             });
         }
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             message: 'Posts fetched successfully',
             data: posts,
@@ -249,7 +267,15 @@ const getPosts = async (req, res) => {
 const getPostById = async (req, res) => {
     try {
         const postId = req.params.id;
-        // Find post by ID, ensure it belongs to the authenticated user if applicable
+
+         // 1. Validate MongoDB ObjectId
+        if (!postId || !mongoose.Types.ObjectId.isValid(postId)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid Post ID format.'
+            });
+        }
+         // Find post by ID, ensure it belongs to the authenticated user if applicable
         const post = await Post.findOne({ _id: postId /* , user: req.user.id */ });
 
         if (!post) {
@@ -277,6 +303,7 @@ const getPostById = async (req, res) => {
     }
 };
 
+
 /**
  * @desc Update a post by ID (updates local DB and optionally LinkedIn)
  * @route PUT /api/posts/:id
@@ -285,108 +312,87 @@ const getPostById = async (req, res) => {
 const updatePost = async (req, res) => {
     try {
         const postId = req.params.id;
-        let { content, status, platform, scheduledAt } = req.body;
+        const { content, status, platform, scheduledAt } = req.body;
 
-        let post = await Post.findOne({ _id: postId /* , user: req.user.id */ });
+        // 1. Validate Post ID
+        if (!postId || !mongoose.Types.ObjectId.isValid(postId)) {
+            return res.status(400).json({ success: false, message: 'Invalid Post ID format.' });
+        }
 
+        // 2. Find the post
+        const post = await Post.findById(postId);
         if (!post) {
             return res.status(404).json({ success: false, message: 'Post not found.' });
         }
 
-        // Basic validation for content if provided
-        if (content && content.trim() === '') {
-            return res.status(400).json({ success: false, message: 'Post content cannot be empty.' });
+        // 3. Validate and update content
+        if (content !== undefined) {
+            if (typeof content !== 'string' || content.trim() === '') {
+                return res.status(400).json({ success: false, message: 'Content cannot be empty.' });
+            }
+            post.content = content;
         }
 
-        // Platform validation if provided
+        // 4. Validate and update platform
         const allowedPlatforms = ['linkedin', 'instagram'];
-        if (platform) {
+        if (platform !== undefined) {
             const lowerPlatform = platform.toLowerCase();
             if (!allowedPlatforms.includes(lowerPlatform)) {
-                return res.status(400).json({ success: false, message: `Invalid platform '${platform}'. Allowed: ${allowedPlatforms.join(', ')}.` });
+                return res.status(400).json({ success: false, message: `Invalid platform. Allowed: ${allowedPlatforms.join(', ')}` });
             }
             post.platform = lowerPlatform;
         }
 
-        // Status validation if provided
+        // 5. Validate and update status
         const allowedStatuses = ['draft', 'published', 'scheduled'];
-        if (status) {
+        if (status !== undefined) {
             const lowerStatus = status.toLowerCase();
             if (!allowedStatuses.includes(lowerStatus)) {
-                return res.status(400).json({ success: false, message: `Invalid status '${status}'. Allowed: ${allowedStatuses.join(', ')}.` });
+                return res.status(400).json({ success: false, message: `Invalid status. Allowed: ${allowedStatuses.join(', ')}` });
             }
             post.status = lowerStatus;
         }
 
-        // Update content if provided
-        if (content) {
-            post.content = content;
-        }
-
-        // Handle scheduledAt updates
-        if (scheduledAt !== undefined) { // Check if scheduledAt is explicitly provided, even if null
-            if (post.status === 'scheduled') { // Only allow scheduledAt change if current status is scheduled
-                const parsedScheduledAt = moment(scheduledAt);
-                if (!parsedScheduledAt.isValid() || parsedScheduledAt.isBefore(moment())) {
-                    return res.status(400).json({
-                        success: false,
-                        message: 'Invalid or past scheduledAt datetime for update. Use ISO 8601 format (e.g., "YYYY-MM-DDTHH:mm:ssZ") and ensure it is in the future.',
-                    });
+        // 6. Validate and update scheduledAt
+        if (scheduledAt !== undefined) {
+            if (post.status === 'scheduled') {
+                const date = moment(scheduledAt);
+                if (!date.isValid() || date.isBefore(moment())) {
+                    return res.status(400).json({ success: false, message: 'Invalid scheduledAt. Must be a future datetime.' });
                 }
-                post.scheduledAt = parsedScheduledAt.toDate();
-            } else if (scheduledAt !== null) { // If scheduledAt is provided and status is not 'scheduled'
-                return res.status(400).json({
-                    success: false,
-                    message: 'Cannot update scheduledAt unless the post status is "scheduled".',
-                });
-            } else { // if scheduledAt is null, and status is not scheduled, clear it.
+                post.scheduledAt = date.toDate();
+            } else {
+                // If scheduledAt is provided but status is not 'scheduled'
                 post.scheduledAt = null;
             }
         }
 
-        // Logic for changing status from scheduled/draft to published, or vice-versa
-        if (post.status === 'published' && !post.posted) {
-            // If the status was changed to 'published' and it wasn't posted before
-            post.posted = true;
-            post.postedAt = new Date();
-            // Attempt to post to LinkedIn if platform is linkedin and it's not already linked
-            if (post.platform === 'linkedin' && !post.linkedInId) {
-                try {
-                    const linkedInResult = await linkedinService.createPost(post.content);
-                    post.linkedInId = linkedInResult.linkedInId;
-                } catch (linkedInError) {
-                    console.error('Failed to publish to LinkedIn during update:', linkedInError.message);
-                    // Decide strategy: fail update, or just mark as local-published
-                    // For now, let's allow local update but notify of LinkedIn failure
-                    return res.status(500).json({
-                        success: false,
-                        message: 'Post updated locally, but failed to publish to LinkedIn.',
-                        errorDetails: linkedInError.response?.data || linkedInError.message
-                    });
-                }
-            }
-        } else if (post.status !== 'published' && post.posted) {
-            // If status changed from 'published' to something else, clear posted status
+        // 7. Reset publishing fields if post is no longer published
+        if (post.status !== 'published') {
             post.posted = false;
             post.postedAt = null;
-            // Optionally: Delete from LinkedIn if it was published there? (More complex logic)
+            post.linkedInId = null;
         }
 
+        // 8. Save the updated post
         const updatedPost = await post.save();
-        res.status(200).json({
+
+        return res.status(200).json({
             success: true,
             message: 'Post updated successfully!',
-            post: updatedPost,
+            post: updatedPost
         });
 
-    } catch (error) {
-        console.error("Error updating post:", error);
-        if (error.name === 'CastError') {
-            return res.status(400).json({ success: false, message: 'Invalid Post ID format.' });
-        }
-        res.status(500).json({ success: false, message: 'Failed to update post.', error: error.message });
+    } catch (err) {
+        console.error(" Error updating post:", err);
+        return res.status(500).json({
+            success: false,
+            message: 'Internal Server Error.',
+            error: err.message
+        });
     }
 };
+
 
 /**
  * @desc Delete a post by its ID (from local DB and optionally LinkedIn)
@@ -397,6 +403,9 @@ const deletePost = async (req, res) => {
     const postId = req.params.id;
 
     try {
+        if (!mongoose.Types.ObjectId.isValid(postId)) {
+            return res.status(400).json({ success: false, message: 'Invalid Post ID format.' });
+        }
         // Find the post to get its details before deleting
         // Ensure post belongs to authenticated user if applicable
         const post = await Post.findOne({ _id: postId /* , user: req.user.id */ });
@@ -424,7 +433,7 @@ const deletePost = async (req, res) => {
         // Delete the post from the local database
         await Post.deleteOne({ _id: postId });
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             message: 'Post deleted successfully from local database and LinkedIn (if applicable).'
         });
@@ -447,9 +456,17 @@ const getTotalPostCount = async (req, res) => {
         const { status } = req.query; // optional filter by status
 
         // Build the match stage
+        const allowedStatuses = ['draft', 'published', 'scheduled'];
         const matchStage = {};
-        if (status) {
-            matchStage.status = status;
+         if (status) {
+            const lowerStatus = status.toLowerCase();
+            if (!allowedStatuses.includes(lowerStatus)) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Invalid status '${status}'. Allowed values: ${allowedStatuses.join(', ')}.`
+                });
+            }
+            matchStage.status = lowerStatus;
         }
 
         // Use aggregation to group by platform and count
@@ -472,10 +489,16 @@ const getTotalPostCount = async (req, res) => {
             totalCount += item.count;
         });
 
-        return res.json({ success: true, totalCount, breakdown: formattedBreakdown});
+        return res.status(200).json({
+            success: true,
+            message: `Total post count${status ? ` for status '${status}'` : ''} fetched successfully.`,
+            totalCount,
+            breakdown: formattedBreakdown
+        });
+
     } catch (error) {
         console.error("Error in getTotalPostCount:", error);
-        res.status(500).json({ success: false, message: "Failed to fetch total post count", error: error.message});
+        return res.status(500).json({ success: false, message: "Failed to fetch total post count", error: error.message});
     }
 };
 
@@ -508,13 +531,37 @@ const getPostsByDate = async (req, res) => {
             createdAt: { $gte: startOfDay, $lte: endOfDay }
         };
 
-        if (status) query.status = status;
-        if (platform) query.platform = platform;
+       // Optional filters
+        const allowedStatuses = ['draft', 'published', 'scheduled'];
+        const allowedPlatforms = ['linkedin', 'instagram'];
+
+        if (status) {
+            const lowerStatus = status.toLowerCase();
+            if (!allowedStatuses.includes(lowerStatus)) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Invalid status '${status}'. Allowed: ${allowedStatuses.join(', ')}.`
+                });
+            }
+            query.status = lowerStatus;
+        }
+
+        if (platform) {
+            const lowerPlatform = platform.toLowerCase();
+            if (!allowedPlatforms.includes(lowerPlatform)) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Invalid platform '${platform}'. Allowed: ${allowedPlatforms.join(', ')}.`
+                });
+            }
+            query.platform = lowerPlatform;
+        }
 
         const posts = await Post.find(query).sort({ createdAt: -1 });
 
-        res.json({
+        return res.json({
             success: true,
+            message: `Fetched ${posts.length} post(s) on ${date}${status ? ` with status '${status}'` : ''}${platform ? ` on '${platform}'` : ''}.`,
             count: posts.length,
             posts
         });
@@ -557,13 +604,37 @@ const getPostsByMonth = async (req, res) => {
             createdAt: { $gte: startOfMonth, $lte: endOfMonth }
         };
 
-        if (status) query.status = status;
-        if (platform) query.platform = platform;
+        // Allowed filters
+        const allowedStatuses = ['draft', 'published', 'scheduled'];
+        const allowedPlatforms = ['linkedin', 'instagram'];
+
+        if (status) {
+            const lowerStatus = status.toLowerCase();
+            if (!allowedStatuses.includes(lowerStatus)) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Invalid status '${status}'. Allowed values: ${allowedStatuses.join(', ')}`
+                });
+            }
+            query.status = lowerStatus;
+        }
+
+        if (platform) {
+            const lowerPlatform = platform.toLowerCase();
+            if (!allowedPlatforms.includes(lowerPlatform)) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Invalid platform '${platform}'. Allowed values: ${allowedPlatforms.join(', ')}`
+                });
+            }
+            query.platform = lowerPlatform;
+        }
 
         const posts = await Post.find(query).sort({ createdAt: -1 });
 
         res.json({
             success: true,
+            message: `Fetched ${posts.length} post(s) for month ${month}${status ? ` with status '${status}'` : ''}${platform ? ` on '${platform}'` : ''}.`,
             count: posts.length,
             posts
         });
@@ -581,11 +652,14 @@ const getPostsByMonth = async (req, res) => {
 const getPostsByTag = async (req, res) => {
     try {
         const allowedTags = ['all', 'published', 'scheduled', 'draft'];
+         const allowedPlatforms = ['linkedin', 'instagram'];
+
         const { tag } = req.params; // Changed from req.query to req.params for /by-tag/:tag route
         const { page = 1, limit = 10, platform } = req.query;
 
         // ✅ Validate the tag
-        if (!allowedTags.includes(tag)) {
+        const lowerTag = tag.toLowerCase();
+        if (!allowedTags.includes(lowerTag)) {
             return res.status(400).json({
                 success: false,
                 message: `Invalid tag '${tag}'. Allowed tags: ${allowedTags.join(', ')}`,
@@ -593,20 +667,23 @@ const getPostsByTag = async (req, res) => {
         }
 
         // ✅ Validate platform, if provided
-        const allowedPlatforms = ['linkedin', 'instagram'];
-        if (platform && !allowedPlatforms.includes(platform)) {
-            return res.status(400).json({
-                success: false,
-                message: `Invalid platform '${platform}'. Allowed platforms: ${allowedPlatforms.join(', ')}`,
-            });
+       if (platform) {
+            platform = platform.toLowerCase();
+            if (!allowedPlatforms.includes(platform)) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Invalid platform '${platform}'. Allowed platforms: ${allowedPlatforms.join(', ')}`,
+                });
+            }
         }
+
+        const skip = (parseInt(page) - 1) * parseInt(limit);
 
         // ✅ Build query dynamically
         const query = {};
-        if (tag !== 'all') query.status = tag;
-        if (platform) query.platform = platform;
 
-        const skip = (parseInt(page) - 1) * parseInt(limit);
+        if (lowerTag !== 'all') query.status = lowerTag;
+        if (platform) query.platform = platform;
 
         const [posts, total] = await Promise.all([
             Post.find(query)
@@ -618,6 +695,7 @@ const getPostsByTag = async (req, res) => {
 
         return res.status(200).json({
             success: true,
+            message: `Fetched ${posts.length} post(s)${lowerTag !== 'all' ? ` with status '${lowerTag}'` : ''}${platform ? ` on '${platform}'` : ''}.`,
             data: posts,
             pagination: {
                 total,
@@ -628,7 +706,7 @@ const getPostsByTag = async (req, res) => {
         });
     } catch (err) {
         console.error("Error in getPostsByTag:", err);
-        return res.status(500).json({ success: false, message: 'Failed to retrieve posts.' });
+        return res.status(500).json({ success: false, message: 'Failed to retrieve posts.', error: err.message });
     }
 };
 

@@ -117,17 +117,26 @@ async postToLinkedIn(content, isCompanyPost = false) {
    */
     async updatePost(postId, newContent, isCompanyPost = false) {
       try {
-        // Step 1: Delete the existing post
-        const deleteResult = await this.deletePost(postId);
-        console.log('Deleted old post:', deleteResult.message);
-  
-        // Step 2: Create the new post with updated content
+         if (!newContent || newContent.trim() === '') {
+          throw new Error('Post content cannot be empty.');
+        }
+
+        // Step 1: Create the new post with updated content
         const newPost = await this.createPost(newContent, isCompanyPost);
+
+        if (!newPost.success || !newPost.linkedInId) {
+          throw new Error('New post creation failed, skipping deletion.');
+        }
+
+        // Step 2: If new post creation succeeds, Delete the old post
+        const deleteResult = await this.deletePost(postId);
+        console.log(`Created new post: ${newPost.linkedInId}, deleted old post: ${postId}`);
   
         return {
           success: true,
-          message: 'Post updated successfully by deleting and recreating',
-          newPostId: newPost.linkedInId
+          message: 'Post updated successfully by creating new and deleting old',
+          newPostId: newPost.linkedInId,
+          deletedPostId: postId
         };
       } catch (error) {
         console.error('Update failed:', error.response?.data || error.message);
@@ -146,7 +155,11 @@ async postToLinkedIn(content, isCompanyPost = false) {
    * @returns {Promise<{success: boolean, message: string}>}
    */
   async deletePost(postId) {
-    try {
+      try {
+        if (!postId) {
+          throw new Error('No post ID provided.');
+        }
+
       let endpoint = '';
 
       // Determine the correct endpoint based on the post type
