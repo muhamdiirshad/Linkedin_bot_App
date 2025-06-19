@@ -1,45 +1,55 @@
 const uploadService = require('../services/uploadService');
 const cloudinaryService = require('../services/cloudinaryService');
+const flaskApiService = require('../services/flaskApiService');
 
 // POST /api/upload/media
 exports.uploadMedia = async (req, res) => {
   try {
-    const { type, text } = req.body;
+    const { type, text, prompt } = req.body; // 👈 Allow optional prompt
     const file = req.file;
 
     if (!file) {
       return res.status(400).json({ success: false, error: "No file uploaded." });
     }
 
-    // Validate file type
     if (!['image', 'video'].includes(type)) {
       return res.status(400).json({ success: false, error: "Invalid file type. Expected 'image' or 'video'." });
     }
 
-    // Validate file size (Example: 50MB max)
-    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+    const MAX_FILE_SIZE = 50 * 1024 * 1024;
     if (file.size > MAX_FILE_SIZE) {
       return res.status(400).json({ success: false, error: "File size exceeds the 50MB limit." });
+    }
+
+    // 👇 Use Flask API if no text is provided
+    let caption = text;
+    if (!caption) {
+      if (!prompt) {
+        return res.status(400).json({ success: false, error: "Prompt is required for AI caption generation." });
+      }
+
+      caption = await flaskApiService.getRegeneratedContent(prompt);
     }
 
     // Upload to Cloudinary
     const cloudinaryUrl = await cloudinaryService.uploadToCloudinary(
       file.buffer,
-      file.originalname, 
-      type // use the passed type, or auto-detected type
+      file.originalname,
+      type
     );
 
     // Create LinkedIn post
     const result = await uploadService.handleMediaPost({
       url: cloudinaryUrl,
       type,
-      text
+      text: caption
     });
 
     res.status(200).json({
       success: true,
       message: 'Posted to LinkedIn!',
-      data: result
+      caption,
+      post: result 
     });
 
   } catch (error) {

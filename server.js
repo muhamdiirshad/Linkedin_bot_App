@@ -14,7 +14,6 @@ console.log("JWT_SECRET:", process.env.JWT_SECRET); // ✅ This will now log the
 // Existing Routes
 const postRoutes = require('./routes/postRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
-const scheduledRoutes = require('./routes/scheduledRoutes');
 const { sendBulkEmail } = require('./controllers/emailController');
 
 
@@ -29,7 +28,6 @@ connectDB();
 // Routes
 app.use('/api/post', postRoutes);
 app.use('/api/upload', uploadRoutes);
-app.use('/api/scheduler', scheduledRoutes);
 app.use('/api/auth', authRoutes); // ✅ Auth routes added
 app.post('/api/send-email', sendBulkEmail);
 
